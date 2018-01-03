@@ -1,3 +1,9 @@
+/* A InstallShield installer extractor
+@YX Hao
+#201712 v0.2
+#201712 v0.1
+* read the license file *
+*/
 
 /*
 Starting sig:
@@ -20,7 +26,6 @@ Mmis:   leading data
 inflate: zlib inlate, flaged unicode, > v12, not v10.5
 
 zlib:
-deflate 1.2.3 Copyright 1995-2005 Jean-loup Gailly
 inflate 1.2.3 Copyright 1995-2005 Mark Adler
 http://www.zlib.net/manual.html
 https://github.com/richgel999/miniz
@@ -56,11 +61,12 @@ InstallShield Express 5             5       2003-10
 DevStudio 9 SP1                     9       2003-11
 DevStudio 9                         9       2003-09
 
-InstallShield DevStudio - Ver 9.0
-InstallShield Developer 8 - Ver 8.0
-InstallShield Developer 7 - Ver 7.0
-InstallShield 6.x - Ver 6.2»ò6.3
-InstallShield 5.1 - Ver 5.1
+InstallShield DevStudio - 9.0
+InstallShield Developer 8 - 8.0
+InstallShield Developer 7 - 7.0
+InstallShield 6.x - 6.2 or 6.3
+InstallShield 5.1 - 5.1
+
 
 Launcher location:
 setup.exe
@@ -73,6 +79,7 @@ setupPreReq.exe
 Re-package:
 ReleasePackager.exe
 Or you can make them to other sfx installer.
+Unicode version will produce plain package with unicode strings.
 
 Cab viewer:
 IsCabView.exe
@@ -82,6 +89,12 @@ ToolkitPro1331vc90U.dll (Xtreme Toolkit Pro Library, UI)
 InstallShield Script Compiler:
 compiler.exe
 compiler.dll
+*/
+
+/* compile
+tcc -o ISx-tcc.exe ISx.c inflate.c miniz_tinfl.c
+gcc -Os -s -o ISx-gcc.exe ISx.c inflate.c miniz_tinfl.c
+cl /Os /MD /FeISx-vc.exe ISx.c inflate.c miniz_tinfl.c
 */
 
 #include <stdlib.h>
@@ -95,10 +108,23 @@ compiler.dll
 // the header you need
 #endif
 
+#ifndef NO_INFLATE // maybe require 'stdint.h'
+extern int inflate_f(char *f_r, char *f_w);
+#endif
+
+/* **** */
+#define PREFER_BLOCK_SIZE (4096 * 64) // n * SECTOR_SIZE, for high efficiency
+
+#if !defined(_STDINT) && !defined(_STDINT_H) && !defined(__int8_t_defined)
+typedef unsigned char uint8_t;
+typedef unsigned short uint16_t;
+typedef unsigned long uint32_t;
+#endif
+
 
 /* **** */
 char *g_DestDir;
-char *g_Ver = "0.1.0 #20171221";
+char *g_Ver = "0.2.0 #20171221";
 
 
 /* **** */
@@ -114,8 +140,8 @@ char *ISSIG_2016 = "ISSetupStream";
 typedef struct IS_HEADER
 {
     char SIG[14];
-    unsigned short num_files;
-    unsigned char x3[30];
+    uint16_t num_files;
+    uint8_t x3[30];
 } IS_HEADER, *PIS_HEADER;
 
 /* file attributes
@@ -125,12 +151,12 @@ extra data?
 typedef struct IS_FILE_ATTRIBUTES
 {
     char file_name[260]; // MAX_PATH
-    unsigned long encoded_flags; // encoded: 0x2|0x4 for num_files = 7, 0x2 for 5
-    unsigned long x3;
-    unsigned long file_len;
-    unsigned char x5[8];
-    unsigned short is_unicode_launcher;
-    unsigned char x7[30];
+    uint32_t encoded_flags; // encoded: 0x2|0x4 for num_files = 7, 0x2 for 5
+    uint32_t x3;
+    uint32_t file_len;
+    uint8_t x5[8];
+    uint16_t is_unicode_launcher;
+    uint8_t x7[30];
 } IS_FILE_ATTRIBUTES, *PIS_FILE_ATTRIBUTES;
 
 
@@ -158,38 +184,38 @@ void make_all_dir_created(char *path, size_t start) {
 
 
 /* **** */
-typedef unsigned char (*BYTE_DECODE_FUN)(unsigned char Byte, unsigned char key);
+typedef uint8_t (*BYTE_DECODE_FUN)(uint8_t Byte, uint8_t key);
 
-typedef unsigned long (*DATA_DECODE_FUN)
+typedef uint32_t (*DATA_DECODE_FUN)
 (
-    unsigned char *data,
-    unsigned long data_len,
+    uint8_t *data,
+    uint32_t data_len,
     BYTE_DECODE_FUN decode_byte,
-    unsigned char *key,
-    unsigned long key_len
+    uint8_t *key,
+    uint32_t key_len
 );
 
 typedef struct DATA_DECODER
 {
-    unsigned char *key;
-    unsigned long key_len;
+    uint8_t *key;
+    uint32_t key_len;
     BYTE_DECODE_FUN decode_byte;
     DATA_DECODE_FUN decode_data;
 }DATA_DECODER, *PDATA_DECODER;
 
-typedef unsigned long *FILE_DECODE_FUN(
+typedef uint32_t *FILE_DECODE_FUN(
     FILE *fp_r,
-    unsigned long offset,
-    unsigned long length,
-    unsigned long encoded_len,
+    uint32_t offset,
+    uint32_t length,
+    uint32_t encoded_len,
     DATA_DECODER decode_data,
     FILE *fp_w
 );
 
-unsigned char *gen_key(unsigned char *seeds, unsigned long len) {
-    const unsigned char MAGIC_DEC[4] = {0x13, 0x35, 0x86, 0x07};
-    unsigned long i;
-    unsigned char *key;
+uint8_t *gen_key(uint8_t *seeds, uint32_t len) {
+    const uint8_t MAGIC_DEC[4] = {0x13, 0x35, 0x86, 0x07};
+    uint32_t i;
+    uint8_t *key;
     //
     key = malloc(len);
     for (i = 0; i < len; i++) {
@@ -199,24 +225,24 @@ unsigned char *gen_key(unsigned char *seeds, unsigned long len) {
     return key;
 }
 
-unsigned char decode_byte(unsigned char Byte, unsigned char key) {
+uint8_t decode_byte(uint8_t Byte, uint8_t key) {
     return ~(key ^ (Byte * 16 | Byte >> 4));
 }
 
-unsigned char encode_byte(unsigned char Byte, unsigned char key) {
+uint8_t encode_byte(uint8_t Byte, uint8_t key) {
     Byte = key ^ ~Byte;
     return Byte * 16 | Byte >> 4;
 }
 
-unsigned long decode_data(
-    unsigned char *data,
-    unsigned long data_len,
+uint32_t decode_data(
+    uint8_t *data,
+    uint32_t data_len,
     BYTE_DECODE_FUN decode_byte,
-    unsigned char *key,
-    unsigned long key_len
+    uint8_t *key,
+    uint32_t key_len
 )
 {
-    unsigned long i;
+    uint32_t i;
     //
     if (key_len <= 0) return 0;
     for (i = 0; i < data_len; i++) {
@@ -226,21 +252,22 @@ unsigned long decode_data(
     return i;
 }
 
-unsigned long decode_file(
+// + just compatitable for substitution
+uint32_t decode_file(
     FILE *fp_r,
-    unsigned long offset,
-    unsigned long length,
-    unsigned long encoded_len,
+    uint32_t offset_r,
+    uint32_t length,
+    uint32_t encoded_len,
     FILE *fp_w,
     PDATA_DECODER pdata_decoder
 )
 {
-    unsigned char *pbuffer;
+    uint8_t *pbuffer;
     long len_read;
     //
     if (length <= 0) { return 0; }
     //
-    fseek(fp_r, offset, SEEK_SET);
+    fseek(fp_r, offset_r, SEEK_SET);
     pbuffer = malloc(encoded_len);
     while (length > 0) { // length left
         if (encoded_len > length) { encoded_len = length; }
@@ -249,19 +276,19 @@ unsigned long decode_file(
             if (pdata_decoder->decode_data(pbuffer, len_read, pdata_decoder->decode_byte,
                 pdata_decoder->key, pdata_decoder->key_len) != len_read) break;
         }
-        if (fp_r == fp_w) {fseek(fp_r, offset, SEEK_SET);}
+        if (fp_r == fp_w) {fseek(fp_r, offset_r, SEEK_SET);}
         if (fwrite(pbuffer, 1, len_read, fp_w) != len_read) break;
-        offset = ftell(fp_r);
+        offset_r = ftell(fp_r);
         length -= len_read;
     }
     free(pbuffer);
     //
     fflush(fp_w);
     //
-    return offset;
+    return offset_r;
 }
 
-unsigned long get_is_file_attributes(FILE *fp, unsigned long data_offset, PIS_FILE_ATTRIBUTES pifa) {
+uint32_t get_is_file_attributes(FILE *fp, uint32_t data_offset, PIS_FILE_ATTRIBUTES pifa) {
     fseek(fp, data_offset, SEEK_SET);
     if (fread(pifa, 1, sizeof(IS_FILE_ATTRIBUTES), fp) == sizeof(IS_FILE_ATTRIBUTES)) {
         data_offset += sizeof(IS_FILE_ATTRIBUTES);
@@ -272,7 +299,7 @@ unsigned long get_is_file_attributes(FILE *fp, unsigned long data_offset, PIS_FI
     return data_offset;
 }
 
-unsigned long get_is_header(FILE *fp, unsigned long data_offset, PIS_HEADER pis_hdr) {
+uint32_t get_is_header(FILE *fp, uint32_t data_offset, PIS_HEADER pis_hdr) {
     fseek(fp, data_offset, SEEK_SET);
     if (fread(pis_hdr, 1, sizeof(IS_HEADER), fp) == sizeof(IS_HEADER)) {
         if (!strcmp(pis_hdr->SIG, ISSIG)) {
@@ -285,12 +312,12 @@ unsigned long get_is_header(FILE *fp, unsigned long data_offset, PIS_HEADER pis_
     return data_offset;
 }
 
-unsigned long extract_encrypted_files(FILE *fp, unsigned long data_offset, int n_2trans) {
+uint32_t extract_encrypted_files(FILE *fp, uint32_t data_offset, int n_2trans) {
     IS_HEADER is_hdr;
     IS_FILE_ATTRIBUTES is_file_attr;
-    unsigned long offset, file_len, encoded_len;
+    uint32_t offset, file_len, encoded_len;
     int is_encrypted, g_DestDir_len;
-    unsigned short num_files, i;
+    uint16_t num_files, i;
     //
     offset = get_is_header(fp, data_offset, &is_hdr);
     if (offset <= data_offset) {return data_offset;}
@@ -304,28 +331,29 @@ unsigned long extract_encrypted_files(FILE *fp, unsigned long data_offset, int n
         char *file_name, *file_name_out;
         DATA_DECODER data_decoder = {0};
         FILE *fp_w;
-        int has_type_2_or_4, has_type_4;
+        int has_type_2_or_4, has_type_4, is_need_inflate;
         //
         offset = get_is_file_attributes(fp, data_offset, &is_file_attr);
         if (offset <= data_offset) {break;}
         data_offset = offset;
         data_offset += is_file_attr.file_len;
-        fprintf(stdout, "[0x%08X] [% 12u] %s ... ", offset, is_file_attr.file_len, is_file_attr.file_name);
+        fprintf(stdout, "[0x%08X] [% 12u] %s\n", offset, is_file_attr.file_len, is_file_attr.file_name);
         //
         file_name_out = strdup(g_DestDir);
         file_name_out = strcat_x(file_name_out, is_file_attr.file_name);
         make_all_dir_created(file_name_out, g_DestDir_len);
         //
         fp_w = fopen(file_name_out, "wb+");
-        free(file_name_out);
+        //free(file_name_out);
         if (!fp_w) {
             fprintf(stderr, "can't create file!\n");
             break;
         }
         //
         // get encoded type
-        encoded_len = 4096; // 4k for high speed
+        encoded_len = PREFER_BLOCK_SIZE;
         is_encrypted = 0;
+        is_need_inflate = 0;
         has_type_2_or_4 = is_file_attr.encoded_flags & 6;
         has_type_4 = is_file_attr.encoded_flags & 4;
         if (has_type_4 && has_type_2_or_4) {
@@ -340,11 +368,11 @@ unsigned long extract_encrypted_files(FILE *fp, unsigned long data_offset, int n
             data_decoder.decode_data = decode_data;
         }
         //
-        fprintf(stdout, ">>> ");
+        fprintf(stdout, "[1] ");
         offset = decode_file(fp, offset, is_file_attr.file_len, encoded_len, fp_w, &data_decoder);
         if (offset != data_offset) {
             fseek(fp, data_offset, SEEK_SET);
-            fprintf(stdout, "N\n");
+            fprintf(stdout, "N");
         }
         else {
             fprintf(stdout, "Y");
@@ -352,7 +380,7 @@ unsigned long extract_encrypted_files(FILE *fp, unsigned long data_offset, int n
             // Another round/type by file length as data length
             // >= v10.5 (no n_2trans), n_2trans: v12
             if (n_2trans && !has_type_4 && has_type_2_or_4) {
-                fprintf(stdout, " >>> ");
+                fprintf(stdout, " => [2] ");
                 offset = decode_file(fp_w, 0, is_file_attr.file_len,
                                     is_file_attr.file_len, fp_w, &data_decoder);
                 if (offset != data_offset) {
@@ -365,23 +393,51 @@ unsigned long extract_encrypted_files(FILE *fp, unsigned long data_offset, int n
             }
             // infalte
             if (is_file_attr.is_unicode_launcher) {
-                fprintf(stdout, " {deflated!}");
+                is_need_inflate = 1;
             }
-            //
-            fprintf(stdout, "\n");
         }
         //
         fclose(fp_w);
+        //
+        if (is_need_inflate) {
+#ifndef NO_INFLATE
+            char *file_name_out_d = NULL;
+            //
+            fprintf(stdout, " => [inflate] ");
+            //
+            file_name_out_d = strdup(file_name_out);
+            file_name_out_d = strcat_x(file_name_out_d, ".tmp");
+            if (inflate_f(file_name_out, file_name_out_d) == 0) {
+                if (remove(file_name_out) == 0
+                    && rename(file_name_out_d, file_name_out) == 0)
+                {
+                    fprintf(stdout, "Y\n");
+                }
+                else {
+                    fprintf(stdout, "N!\n");
+                }
+            }
+            // else, error occured, '\n' printed
+            free(file_name_out_d);
+#else
+            fprintf(stdout, "{deflated!}\n");
+#endif
+        }
+        else {
+            fprintf(stdout, "\n");
+        }
+        //
+        free(file_name_out);
    }
-    return i;
+    return data_offset;
 }
 
 
 /* **** */
-unsigned long save_data_to_file(FILE *fp, unsigned long start, unsigned long data_len, char *file_name) {
+uint32_t save_data_to_file(FILE *fp, uint32_t start, uint32_t data_len, char *file_name) {
     char *file_name_out;
     FILE *fp_w;
-    unsigned long offset;
+    uint32_t offset;
     //
     file_name_out = strdup(g_DestDir);
     file_name_out = strcat_x(file_name_out, file_name);
@@ -396,8 +452,7 @@ unsigned long save_data_to_file(FILE *fp, unsigned long start, unsigned long dat
     }
     fprintf(stdout, "[0x%08X] [% 12u] %s ... ", start, data_len, file_name);
     //
-    fprintf(stdout, ">>> ");
-    offset = decode_file(fp, start, data_len, 4096, fp_w, NULL);
+    offset = decode_file(fp, start, data_len, PREFER_BLOCK_SIZE, fp_w, NULL);
     start += data_len;
     fclose(fp_w);
     if (start != offset) {
@@ -416,10 +471,10 @@ typedef struct PLAIN_FILE_ATTRIBUTES
     char file_name[MAX_PATH];
     char file_dest_name[MAX_PATH];
     char version[32];
-    unsigned long file_len;
+    uint32_t file_len;
 } PLAIN_FILE_ATTRIBUTES, *PPLAIN_FILE_ATTRIBUTES;
 
-unsigned long get_plain_file_attributes(FILE *fp, unsigned long data_offset, PPLAIN_FILE_ATTRIBUTES ppfa) {
+uint32_t get_plain_file_attributes(FILE *fp, uint32_t data_offset, PPLAIN_FILE_ATTRIBUTES ppfa) {
     fseek(fp, data_offset, SEEK_SET);
     // "%[\x20-\xFF]" won't work on win10! "%[^\x0-\x1F]" will stop at blank!
     if (fscanf(fp, "%[\x20-\xFE]%*\x0%[\x20-\xFE]%*\x0%[\x20-\xFE]%*\x0%d%*\x0",
@@ -433,9 +488,9 @@ unsigned long get_plain_file_attributes(FILE *fp, unsigned long data_offset, PPL
     }
 }
 
-unsigned long extract_plain_files(FILE *fp, unsigned long data_offset) {
+uint32_t extract_plain_files(FILE *fp, uint32_t data_offset) {
     // ver: 15.0
-    unsigned long offset;
+    uint32_t offset;
     PLAIN_FILE_ATTRIBUTES pa;
     FILE *fp_w;
     //
@@ -453,10 +508,10 @@ unsigned long extract_plain_files(FILE *fp, unsigned long data_offset) {
 
 
 /* **** */
-unsigned long get_data_offset(FILE *fp){
+uint32_t get_data_offset(FILE *fp){
     IMAGE_DOS_HEADER dos_hdr;
     IMAGE_NT_HEADERS pe_hdr;
-    unsigned short section_n;
+    uint16_t section_n;
     IMAGE_SECTION_HEADER image_section_hdr;
     // pre-test
     fread(&dos_hdr, 1, sizeof(IMAGE_DOS_HEADER), fp);
@@ -486,16 +541,15 @@ void help(){
 
 /* **** */
 int main(int argc, char **argv) {
-    FILE *fp;
+    FILE *fp = NULL;
     char version_sig[MAX_PATH];
-    unsigned long data_offset, data_len, total_len;
+    uint32_t data_offset, data_len, total_len;
     int n_2trans, ret;
     char drive[_MAX_DRIVE], dir[_MAX_DIR], fname[_MAX_FNAME], ext[_MAX_EXT];
-    char *launcher_name;
+    char *launcher_name = NULL;
     //
     n_2trans = 1;
     ret = 0;
-    fp = NULL;
     //
     if (argc < 2) {
         help();
@@ -552,6 +606,8 @@ int main(int argc, char **argv) {
     fseek(fp, data_offset, SEEK_SET);
     // try plain 1st
     if (extract_plain_files(fp, data_offset) > data_offset) {goto check_extra;}
+    // unicode version: 0C000000, and wide attibute strings
+    //
     // most
     if (extract_encrypted_files(fp, data_offset, n_2trans) > data_offset) {goto check_extra;}
     //
