@@ -62,6 +62,26 @@ InstallShield Developer 7 - Ver 7.0
 InstallShield 6.x - Ver 6.2»ò6.3
 InstallShield 5.1 - Ver 5.1
 
+Launcher location:
+setup.exe
+program files\Macrovision\IS2008\Redist\Language Independent\i386\
+program files\InstallShield\2011\Redist\Language Independent\i386\
+program files\InstallShield\2011\Redist\Language Independent\i386\ISP\:
+plain, file name could be unicode
+setupPreReq.exe
+
+Re-package:
+ReleasePackager.exe
+Or you can make them to other sfx installer.
+
+Cab viewer:
+IsCabView.exe
+MediaBuild??.dll
+ToolkitPro1331vc90U.dll (Xtreme Toolkit Pro Library, UI)
+
+InstallShield Script Compiler:
+compiler.exe
+compiler.dll
 */
 
 #include <stdlib.h>
@@ -304,7 +324,7 @@ unsigned long extract_encrypted_files(FILE *fp, unsigned long data_offset, int n
         }
         //
         // get encoded type
-        encoded_len = 1024;
+        encoded_len = 4096; // 4k for high speed
         is_encrypted = 0;
         has_type_2_or_4 = is_file_attr.encoded_flags & 6;
         has_type_4 = is_file_attr.encoded_flags & 4;
@@ -313,6 +333,7 @@ unsigned long extract_encrypted_files(FILE *fp, unsigned long data_offset, int n
         }
         //
         if (is_encrypted) {
+            encoded_len = 1024;
             data_decoder.key_len = strlen(is_file_attr.file_name);
             data_decoder.key = gen_key(is_file_attr.file_name, data_decoder.key_len);
             data_decoder.decode_byte = decode_byte;
@@ -376,7 +397,7 @@ unsigned long save_data_to_file(FILE *fp, unsigned long start, unsigned long dat
     fprintf(stdout, "[0x%08X] [% 12u] %s ... ", start, data_len, file_name);
     //
     fprintf(stdout, ">>> ");
-    offset = decode_file(fp, start, data_len, 1024, fp_w, NULL);
+    offset = decode_file(fp, start, data_len, 4096, fp_w, NULL);
     start += data_len;
     fclose(fp_w);
     if (start != offset) {
@@ -416,7 +437,6 @@ unsigned long extract_plain_files(FILE *fp, unsigned long data_offset) {
     // ver: 15.0
     unsigned long offset;
     PLAIN_FILE_ATTRIBUTES pa;
-    char *file_name_out;
     FILE *fp_w;
     //
     fseek(fp, data_offset, SEEK_SET);
@@ -427,8 +447,6 @@ unsigned long extract_plain_files(FILE *fp, unsigned long data_offset) {
         //
         save_data_to_file(fp, offset, pa.file_len, pa.file_dest_name);
     }
-    //
-    free(file_name_out);
     //
     return data_offset;
 }
@@ -539,10 +557,10 @@ int main(int argc, char **argv) {
     //
     // try different types end
     //
+check_extra:
     data_offset = ftell(fp);
     data_len = total_len - data_offset;
     //
-check_extra:
     if (data_len > 0) { // feof <> 100%
         char *file_name_out;
         //
