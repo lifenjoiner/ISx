@@ -1,4 +1,4 @@
-/* A InstallShield installer extractor
+/* An InstallShield installer extractor
 @YX Hao
 
 History:
@@ -64,7 +64,7 @@ InstallShield Express X             X       2004-06
 InstallShield Express 5 SP2         5       2004-01
 InstallShield Express 5             5       2003-10
 DevStudio 9 SP1                     9       2003-11
-DevStudio 9                         9       2003-09
+DevStudio 9                         9       2003-09                 plain
 
 InstallShield DevStudio - 9.0
 InstallShield Developer 8 - 8.0
@@ -192,7 +192,7 @@ typedef unsigned long uint32_t;
 
 
 /* **** */
-char *g_Ver = "0.2.0 #20171221";
+char *g_Ver = "0.3.1 #20180111";
 char *g_DestDir;
 char *g_Seed;
 int g_CP;
@@ -886,8 +886,7 @@ check_extra:
         //
         fprintf(stdout, "extra data:\n");
         file_name_out = strdup(fname);
-        file_name_out = strcat_x(file_name_out, "_ext");
-        file_name_out = strcat_x(file_name_out, ext);
+        file_name_out = strcat_x(file_name_out, "_ext.bin");
         //
         save_data_to_file(fp, data_offset, data_len, file_name_out);
         free(file_name_out);
