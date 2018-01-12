@@ -7,7 +7,7 @@ and make the installation work well.
 
 What doest this program do?
 It focuses on why it is created.
-It extracts all the components of the InstallShield installer.
+It extracts ALL the components of the InstallShield installer.
 
 The capability?
 DevStudio 9 (2003) to InstallShield 2016, based on my limited tests.

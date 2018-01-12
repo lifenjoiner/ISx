@@ -192,7 +192,7 @@ typedef unsigned long uint32_t;
 
 
 /* **** */
-char *g_Ver = "0.3.1 #20180111";
+char *g_Ver = "0.3.2 #20180112";
 char *g_DestDir;
 char *g_Seed;
 int g_CP;
@@ -488,9 +488,7 @@ uint32_t get_is_header(FILE *fp, uint32_t data_offset, PIS_HEADER pis_hdr) {
             data_offset += sizeof(IS_HEADER);
         }
     }
-    else {
-        fseek(fp, data_offset, SEEK_SET);
-    }
+    fseek(fp, data_offset, SEEK_SET);
     return data_offset;
 }
 
@@ -678,9 +676,13 @@ typedef struct PLAIN_FILE_ATTRIBUTES
 } PLAIN_FILE_ATTRIBUTES, *PPLAIN_FILE_ATTRIBUTES;
 
 uint32_t get_plain_file_attributes(FILE *fp, uint32_t data_offset, PPLAIN_FILE_ATTRIBUTES ppfa) {
+    /*  char range
+        https://en.wikipedia.org/wiki/Control_character
+        "%[\x20-\xFF]" won't work on win10! "%[^\x0-\x1F]" will stop at blank!
+    */
+    // in case dumping failed
     fseek(fp, data_offset, SEEK_SET);
-    // "%[\x20-\xFF]" won't work on win10! "%[^\x0-\x1F]" will stop at blank!
-    if (fscanf(fp, "%[\x20-\xFE]%*\x0%[\x20-\xFE]%*\x0%[\x20-\xFE]%*\x0%d%*\x0",
+    if (fscanf(fp, "%259[\x20-\xFE]%*\x0%259[\x20-\xFE]%*\x0%31[\x20-\xFE]%*\x0%d%*\x0",
         ppfa->file_name, ppfa->file_dest_name, ppfa->version, &ppfa->file_len) == 4)
     {
         return ftell(fp);
@@ -696,8 +698,6 @@ uint32_t extract_plain_files(FILE *fp, uint32_t data_offset) {
     uint32_t offset;
     PLAIN_FILE_ATTRIBUTES pa;
     FILE *fp_w;
-    //
-    fseek(fp, data_offset, SEEK_SET);
     //
     while ((offset = get_plain_file_attributes(fp, data_offset, &pa)) > data_offset) {
         data_offset = offset;
@@ -719,11 +719,15 @@ typedef struct PLAIN_FILE_ATTRIBUTES_W
 } PLAIN_FILE_ATTRIBUTES_W, *PPLAIN_FILE_ATTRIBUTES_W;
 
 uint32_t get_plain_file_attributes_w(FILE *fp, uint32_t data_offset, PPLAIN_FILE_ATTRIBUTES_W ppfa_w) {
-    // skip 4 bytes
-    fseek(fp, data_offset + 4, SEEK_SET);
-    // "%[\x20-\xFF]" won't work on win10! "%[^\x0-\x1F]" will stop at blank!
-    if (fwscanf(fp, L"%[\x20-\xFFFE]%*\x0%[\x20-\xFFFE]%*\x0%[\x20-\xFFFE]%*\x0%d%*\x0",
-        ppfa_w->file_name, ppfa_w->file_dest_name, ppfa_w->version, &ppfa_w->file_len) == 4)
+    /*  char range
+        https://en.wikipedia.org/wiki/Control_character
+        "%[^\x0-\x1F]" will stop at blank!
+        \xFFFE is BOM
+    */
+    // in case dumping failed
+    fseek(fp, data_offset, SEEK_SET);
+    if (fwscanf(fp, L"%259[\x20-\xFFFD]%*\x0%259[\x20-\xFFFD]%*\x0%31[\x20-\xFFFD]%*\x0%d%*\x0",
+            ppfa_w->file_name, ppfa_w->file_dest_name, ppfa_w->version, &ppfa_w->file_len) == 4)
     {
         return ftell(fp);
     }
@@ -735,13 +739,14 @@ uint32_t get_plain_file_attributes_w(FILE *fp, uint32_t data_offset, PPLAIN_FILE
 
 uint32_t extract_plain_files_w(FILE *fp, uint32_t data_offset) {
     // ver: 
-    uint32_t offset;
+    uint32_t offset, offset_o;
     PLAIN_FILE_ATTRIBUTES_W pa_w;
     FILE *fp_w;
-    //char file_dest_name[11]; // preserved for file name that can't be converted
     char *file_dest_name;
     //
-    fseek(fp, data_offset + 4, SEEK_SET);
+    // skip 4 bytes
+    offset_o = data_offset;
+    data_offset += 4;
     //
     while ((offset = get_plain_file_attributes_w(fp, data_offset, &pa_w)) > data_offset) {
         char file_name_new[11]; // preserved for file name that can't be converted
@@ -758,7 +763,7 @@ uint32_t extract_plain_files_w(FILE *fp, uint32_t data_offset) {
         free(file_dest_name);
     }
     //
-    return data_offset;
+    return data_offset > offset_o + 4 ? data_offset : offset_o;
 }
 
 
@@ -797,7 +802,7 @@ void help(){
 /* **** */
 int main(int argc, char **argv) {
     FILE *fp = NULL;
-    char version_sig[MAX_PATH];
+    char version_sig[8];
     uint32_t data_offset, data_len, total_len;
     int n_2trans, ret, n_tmp;
     char *filename;
@@ -858,7 +863,7 @@ int main(int argc, char **argv) {
     // start with some string
     // skip the rubbish? 2009/2010
     fseek(fp, data_offset, SEEK_SET);
-    if (fscanf(fp, "%[\x20-\xFE]%*[\x0]%*[\x01-\xFE]%*[\x0]%*[\x20-\xFE]%*[\x0]", version_sig) == 1) {
+    if (fscanf(fp, "%7[\x20-\xFE]%*\x0%*[\x01-\xFE]%*\x0%*[\x20-\xFE]%*\x0", version_sig) == 1) {
         if (strcmp(version_sig, "NB10") == 0) {
             data_offset = ftell(fp);
         }
