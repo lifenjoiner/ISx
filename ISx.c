@@ -158,7 +158,7 @@ cl /Os /MD /FeISx-vc.exe ISx.c inflate_tinfl.c miniz_tinfl.c
 #include <locale.h>
 
 // PE file struct, 'WideChar <--> MultiByte'
-#if defined(_MSC_VER) || defined(WINVER)
+#if defined(_MSC_VER) || defined(_WIN32_WINNT)
 #include <windows.h>
 #include <mbctype.h>
 int utf16_to_cs(const wchar_t *str_w, UINT cp_out, char **str_m) {
@@ -228,7 +228,7 @@ len: 312, 0x138
 extra data? */
 typedef struct IS_FILE_ATTRIBUTES
 {
-    char file_name[260]; // MAX_PATH
+    char file_name[_MAX_PATH]; // _MAX_PATH
     uint32_t encoded_flags; // encoded: 0x2|0x4 for num_files = 7, 0x2 for 5
     uint32_t x3;
     uint32_t file_len;
@@ -453,12 +453,12 @@ uint32_t get_is_file_attributes(FILE *fp, uint32_t data_offset, PIS_FILE_ATTRIBU
 
 uint32_t get_is_file_attributes_ustrm(FILE *fp, uint32_t data_offset, PIS_FILE_ATTRIBUTES pifa) {
     IS_FILE_ATTRIBUTES_X is_ax;
-    wchar_t file_name_w[MAX_PATH] = {0};
+    wchar_t file_name_w[_MAX_PATH] = {0};
     char *file_name;
     //
     fseek(fp, data_offset, SEEK_SET);
     if (fread(&is_ax, 1, sizeof(IS_FILE_ATTRIBUTES_X), fp) == sizeof(IS_FILE_ATTRIBUTES_X)
-        && is_ax.filename_len > 0 && is_ax.filename_len < MAX_PATH * 2
+        && is_ax.filename_len > 0 && is_ax.filename_len < _MAX_PATH * 2
         && fread(file_name_w, 1, is_ax.filename_len, fp) == is_ax.filename_len)
     {
         utf16_to_cs(file_name_w, 65001, &g_Seed);
@@ -669,8 +669,8 @@ uint32_t save_data_to_file(FILE *fp, uint32_t start, uint32_t data_len, char *fi
 
 typedef struct PLAIN_FILE_ATTRIBUTES
 {
-    char file_name[MAX_PATH];
-    char file_dest_name[MAX_PATH];
+    char file_name[_MAX_PATH];
+    char file_dest_name[_MAX_PATH];
     char version[32];
     uint32_t file_len;
 } PLAIN_FILE_ATTRIBUTES, *PPLAIN_FILE_ATTRIBUTES;
@@ -712,8 +712,8 @@ uint32_t extract_plain_files(FILE *fp, uint32_t data_offset) {
 
 typedef struct PLAIN_FILE_ATTRIBUTES_W
 {
-    wchar_t file_name[MAX_PATH];
-    wchar_t file_dest_name[MAX_PATH];
+    wchar_t file_name[_MAX_PATH];
+    wchar_t file_dest_name[_MAX_PATH];
     wchar_t version[32];
     uint32_t file_len;
 } PLAIN_FILE_ATTRIBUTES_W, *PPLAIN_FILE_ATTRIBUTES_W;
