@@ -158,7 +158,7 @@ cl /Os /MD /FeISx-vc.exe ISx.c inflate_tinfl.c miniz_tinfl.c
 #include <locale.h>
 
 // PE file struct, 'WideChar <--> MultiByte'
-#if defined(_MSC_VER) || defined(_WIN32_WINNT)
+#if defined(_WIN32)
 #include <windows.h>
 #include <mbctype.h>
 int utf16_to_cs(const wchar_t *str_w, UINT cp_out, char **str_m) {
