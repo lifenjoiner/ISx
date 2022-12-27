@@ -2,6 +2,9 @@
 @YX Hao
 
 History:
+#202212 v0.3.3
++ Cover 'ISSetupStream' v4.
+
 #201712 v0.3
 + Support unicode file name, and 'ISSetupStream' format.
 
@@ -192,7 +195,7 @@ typedef unsigned long uint32_t;
 
 
 /* **** */
-char *g_Ver = "0.3.2 #20180112";
+char *g_Ver = "0.3.3";
 char *g_DestDir;
 char *g_Seed;
 int g_CP;
@@ -311,7 +314,8 @@ typedef uint32_t (*FILE_DECODE_FUN)(
 typedef uint32_t (*GET_IS_FILE_ATTRIBUTES_FUN)(
     FILE *fp,
     uint32_t data_offset,
-    PIS_FILE_ATTRIBUTES pifa
+    PIS_FILE_ATTRIBUTES pifa,
+    uint32_t type
 );
 
 
@@ -440,7 +444,7 @@ uint32_t decode_file(
     return offset_r;
 }
 
-uint32_t get_is_file_attributes(FILE *fp, uint32_t data_offset, PIS_FILE_ATTRIBUTES pifa) {
+uint32_t get_is_file_attributes(FILE *fp, uint32_t data_offset, PIS_FILE_ATTRIBUTES pifa, uint32_t type) {
     fseek(fp, data_offset, SEEK_SET);
     if (fread(pifa, 1, sizeof(IS_FILE_ATTRIBUTES), fp) == sizeof(IS_FILE_ATTRIBUTES)) {
         data_offset += sizeof(IS_FILE_ATTRIBUTES);
@@ -451,7 +455,7 @@ uint32_t get_is_file_attributes(FILE *fp, uint32_t data_offset, PIS_FILE_ATTRIBU
     return data_offset;
 }
 
-uint32_t get_is_file_attributes_ustrm(FILE *fp, uint32_t data_offset, PIS_FILE_ATTRIBUTES pifa) {
+uint32_t get_is_file_attributes_ustrm(FILE *fp, uint32_t data_offset, PIS_FILE_ATTRIBUTES pifa, uint32_t type) {
     IS_FILE_ATTRIBUTES_X is_ax;
     wchar_t file_name_w[_MAX_PATH] = {0};
     char *file_name;
@@ -459,6 +463,7 @@ uint32_t get_is_file_attributes_ustrm(FILE *fp, uint32_t data_offset, PIS_FILE_A
     fseek(fp, data_offset, SEEK_SET);
     if (fread(&is_ax, 1, sizeof(IS_FILE_ATTRIBUTES_X), fp) == sizeof(IS_FILE_ATTRIBUTES_X)
         && is_ax.filename_len > 0 && is_ax.filename_len < _MAX_PATH * 2
+        && (type == 4 ? fseek(fp, sizeof(IS_FILE_ATTRIBUTES_X), SEEK_CUR) == 0 : 1)
         && fread(file_name_w, 1, is_ax.filename_len, fp) == is_ax.filename_len)
     {
         utf16_to_cs(file_name_w, 65001, &g_Seed);
@@ -503,6 +508,10 @@ uint32_t extract_encrypted_files(FILE *fp, uint32_t data_offset, int n_2trans) {
     DATA_DECODE_FUN data_decode_fun;
     //
     offset = get_is_header(fp, data_offset, &is_hdr);
+    if (is_hdr.type > 4) {
+        fprintf(stderr, "new installer version!\n");
+        return data_offset;
+    }
     if (offset <= data_offset) {return data_offset;}
     data_offset = offset;
     //
@@ -525,7 +534,7 @@ uint32_t extract_encrypted_files(FILE *fp, uint32_t data_offset, int n_2trans) {
         FILE *fp_w;
         int has_type_2_or_4, has_type_4, is_need_inflate;
         //
-        offset = get_is_file_attributes_fun(fp, data_offset, &is_file_attr);
+        offset = get_is_file_attributes_fun(fp, data_offset, &is_file_attr, is_hdr.type);
         if (offset <= data_offset) {break;}
         data_offset = offset;
         data_offset += is_file_attr.file_len;

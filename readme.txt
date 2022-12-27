@@ -10,7 +10,7 @@ It focuses on why it is created.
 It extracts ALL the components of the InstallShield installer.
 
 The capability?
-DevStudio 9 (2003) to InstallShield 2016, based on my limited tests.
+DevStudio 9 (2003) to InstallShield 2021, based on my limited tests.
 
 Usage?
 ISx <file>
@@ -25,6 +25,6 @@ Further information?
 1. You can use 'ISCab' from InstallShield (2009) to modify the cab file(s).
 2. You can use 'Orca' to modify the msi files.
 3. You can use 'isd'/'sid' to the inx/ins file.
-4. You can run the extracted '*_sfx.exe' file to launch the installation.
+4. You can run the (some) extracted '*_sfx.exe' file to launch the installation.
 5. For the older version installer, try 'IsXunpack'.
 6. More? Read the source file!
