@@ -305,7 +305,7 @@ typedef uint32_t (*FILE_DECODE_FUN)(
     FILE *fp_r,
     uint32_t offset,
     uint32_t length,
-    uint32_t encoded_len,
+    uint32_t encoded_block_len,
     DATA_DECODER decode_data,
     FILE *fp_w
 );
@@ -397,7 +397,7 @@ uint32_t decode_file(
     FILE *fp_r,
     uint32_t offset_r,
     uint32_t length,
-    uint32_t encoded_len,
+    uint32_t encoded_block_len,
     FILE *fp_w,
     PDATA_DECODER pdata_decoder
 )
@@ -414,15 +414,15 @@ uint32_t decode_file(
     else {fprintf(stdout, "  ");}
     //
     len_read = PREFER_BLOCK_SIZE;
-    if (len_read > encoded_len) {len_read = encoded_len;}
+    if (len_read > encoded_block_len) {len_read = encoded_block_len;}
     pbuffer = malloc(len_read);
     offset_w = 0;
     while (length > 0) { // length left
         if (len_read > length) { len_read = length; }
         // for big file
         len_encoded_done = 0;
-        if (encoded_len > length) { encoded_len = length; }
-        while (len_encoded_done < encoded_len) {
+        if (encoded_block_len > length) { encoded_block_len = length; }
+        while (len_encoded_done < encoded_block_len) {
             len_read = fread(pbuffer, 1, len_read, fp_r);
             if (need_decode_data) {
                 if (pdata_decoder->decode_data(pbuffer, len_read, len_encoded_done,
@@ -435,7 +435,7 @@ uint32_t decode_file(
             offset_w += len_read;
         }
         //
-        length -= encoded_len;
+        length -= encoded_block_len;
     }
     free(pbuffer);
     //
@@ -500,7 +500,7 @@ uint32_t get_is_header(FILE *fp, uint32_t data_offset, PIS_HEADER pis_hdr) {
 uint32_t extract_encrypted_files(FILE *fp, uint32_t data_offset, int n_2trans) {
     IS_HEADER is_hdr;
     IS_FILE_ATTRIBUTES is_file_attr;
-    uint32_t offset, file_len, encoded_len;
+    uint32_t offset, file_len, encoded_block_len;
     int g_DestDir_len;
     uint16_t num_files, i;
     // reuse the framework
@@ -515,13 +515,13 @@ uint32_t extract_encrypted_files(FILE *fp, uint32_t data_offset, int n_2trans) {
     if (offset <= data_offset) {return data_offset;}
     data_offset = offset;
     //
-    encoded_len = PREFER_BLOCK_SIZE;
+    encoded_block_len = PREFER_BLOCK_SIZE;
     get_is_file_attributes_fun = get_is_file_attributes;
     data_decode_fun = decode_data;
     if (!strcmp(is_hdr.SIG, ISSIG_strm)) {
         get_is_file_attributes_fun = get_is_file_attributes_ustrm;
         data_decode_fun = decode_data_ustrm;
-        encoded_len = 0x4000;
+        encoded_block_len = 0x4000;
     }
     //
     num_files = is_hdr.num_files;
@@ -564,12 +564,12 @@ uint32_t extract_encrypted_files(FILE *fp, uint32_t data_offset, int n_2trans) {
         has_type_2_or_4 = is_file_attr.encoded_flags & 6;
         has_type_4 = is_file_attr.encoded_flags & 4;
         if (has_type_4 && has_type_2_or_4) {
-            encoded_len = 1024;
+            encoded_block_len = 1024;
             data_decoder.decode_data = data_decode_fun;
         }
         //
         fprintf(stdout, "[b] ");
-        offset = decode_file(fp, offset, is_file_attr.file_len, encoded_len, fp_w, &data_decoder);
+        offset = decode_file(fp, offset, is_file_attr.file_len, encoded_block_len, fp_w, &data_decoder);
         if (offset != data_offset) {
             fseek(fp, data_offset, SEEK_SET);
             fprintf(stdout, "N");
@@ -589,9 +589,8 @@ uint32_t extract_encrypted_files(FILE *fp, uint32_t data_offset, int n_2trans) {
                     data_decoder.decode_data = data_decode_fun;
                 }
                 data_decoder.decode_type = 1;
-                encoded_len = is_file_attr.file_len;
                 //
-                offset = decode_file(fp_w, 0, is_file_attr.file_len, encoded_len, fp_w, &data_decoder);
+                offset = decode_file(fp_w, 0, is_file_attr.file_len, is_file_attr.file_len, fp_w, &data_decoder);
                 if (offset != is_file_attr.file_len) {
                     fseek(fp, data_offset, SEEK_SET);
                     fprintf(stdout, "N");
