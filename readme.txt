@@ -28,3 +28,6 @@ Further information?
 4. You can run the (some) extracted '*_sfx.exe' file to launch the installation.
 5. For the older version installer, try 'IsXunpack'.
 6. More? Read the source file!
+
+Source code?
+https://github.com/lifenjoiner/ISx
