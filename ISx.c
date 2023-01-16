@@ -538,7 +538,7 @@ uint32_t extract_encrypted_files(FILE *fp, uint32_t data_offset, int n_2trans) {
         if (offset <= data_offset) {break;}
         data_offset = offset;
         data_offset += is_file_attr.file_len;
-        fprintf(stdout, "0x%08X %010u \"%s\"\n", offset, is_file_attr.file_len, is_file_attr.file_name);
+        fprintf(stdout, "0x%08X % 10u \"%s\"\n", offset, is_file_attr.file_len, is_file_attr.file_name);
         fprintf(stdout, "% 22c", ' ');
         //
         file_name_out = strdup(g_DestDir);
@@ -649,7 +649,7 @@ uint32_t save_data_to_file(FILE *fp, uint32_t start, uint32_t data_len, char *fi
     FILE *fp_w;
     uint32_t offset;
     //
-    fprintf(stdout, "0x%08X %010u \"%s\" ... ", start, data_len, file_name);
+    fprintf(stdout, "0x%08X % 10u \"%s\" ... ", start, data_len, file_name);
     file_name_out = strdup(g_DestDir);
     file_name_out = strcat_x(file_name_out, file_name);
     //
