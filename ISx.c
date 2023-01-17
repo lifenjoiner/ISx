@@ -533,6 +533,7 @@ uint32_t extract_encrypted_files(FILE *fp, uint32_t data_offset, int n_2trans) {
         DATA_DECODER data_decoder = {0};
         FILE *fp_w;
         int has_type_2_or_4, has_type_4, is_need_inflate;
+        uint32_t encoded_block_len_i = encoded_block_len;
         //
         offset = get_is_file_attributes_fun(fp, data_offset, &is_file_attr, is_hdr.type);
         if (offset <= data_offset) {break;}
@@ -564,12 +565,12 @@ uint32_t extract_encrypted_files(FILE *fp, uint32_t data_offset, int n_2trans) {
         has_type_2_or_4 = is_file_attr.encoded_flags & 6;
         has_type_4 = is_file_attr.encoded_flags & 4;
         if (has_type_4 && has_type_2_or_4) {
-            encoded_block_len = 1024;
+            encoded_block_len_i = 1024;
             data_decoder.decode_data = data_decode_fun;
         }
         //
         fprintf(stdout, "[b] ");
-        offset = decode_file(fp, offset, is_file_attr.file_len, encoded_block_len, fp_w, &data_decoder);
+        offset = decode_file(fp, offset, is_file_attr.file_len, encoded_block_len_i, fp_w, &data_decoder);
         if (offset != data_offset) {
             fseek(fp, data_offset, SEEK_SET);
             fprintf(stdout, "N");
