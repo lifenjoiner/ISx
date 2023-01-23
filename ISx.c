@@ -162,6 +162,44 @@ cl /Os /MD /FeISx-vc.exe ISx.c inflate_tinfl.c miniz_tinfl.c
 
 // PE file struct, 'WideChar <--> MultiByte'
 #if defined(_WIN32)
+
+// MSVCR80.dll
+#if _MSC_VER < 1400 && __MSVCRT_VERSION__ < 0x1400
+#include <errno.h>
+int __cdecl _fseeki64(FILE* stream, __int64 offset, int whence)
+{
+    fpos_t pos;
+    if (whence == SEEK_CUR) {
+        if (fgetpos(stream, &pos))
+            return (-1);
+        pos += (fpos_t)offset;
+    }
+    else if (whence == SEEK_END) {
+        fflush(stream);
+        pos = (fpos_t)(_filelengthi64(_fileno(stream)) + offset);
+    }
+    else if (whence == SEEK_SET)
+        pos = (fpos_t)offset;
+    else {
+        errno = EINVAL;
+        return (-1);
+    }
+    return fsetpos(stream, &pos);
+}
+
+__int64 __cdecl _ftelli64(FILE* stream)
+{
+    fpos_t pos;
+    if (fgetpos(stream, &pos))
+        return (__int64)-1;
+    else
+        return (__int64)pos;
+}
+#endif
+
+#define ftellx _ftelli64
+#define fseekx _fseeki64
+
 #include <windows.h>
 #include <mbctype.h>
 int utf16_to_cs(const wchar_t *str_w, UINT cp_out, char **str_m) {
@@ -176,9 +214,12 @@ int utf16_to_cs(const wchar_t *str_w, UINT cp_out, char **str_m) {
     len_m = WideCharToMultiByte(cp_out, 0, str_wn, -1, *str_m, len_m, NULL, NULL);
     return len_m - 1;
 }
-#else
+
+#else // defined(_WIN32)
+#define ftellx _ftello64
+#define fseekx _fseeko64
 // the header you need
-#endif
+#endif // defined(_WIN32)
 
 #ifndef NO_INFLATE // maybe require 'stdint.h'
 extern int inflate_f(char *f_r, char *f_w);
@@ -408,7 +449,7 @@ uint32_t decode_file(
     //
     if (length <= 0) { return 0; }
     //
-    fseek(fp_r, offset_r, SEEK_SET);
+    fseekx(fp_r, offset_r, SEEK_SET);
     need_decode_data = pdata_decoder && pdata_decoder->key_len > 0 && pdata_decoder->decode_data;
     if (need_decode_data) {fprintf(stdout, "* ");}
     else {fprintf(stdout, "  ");}
@@ -428,7 +469,7 @@ uint32_t decode_file(
                 if (pdata_decoder->decode_data(pbuffer, len_read, len_encoded_done,
                     pdata_decoder->decode_byte, pdata_decoder->key, pdata_decoder->key_len) != len_read) break;
             }
-            if (fp_r == fp_w) {fseek(fp_r, offset_r, SEEK_SET);}
+            if (fp_r == fp_w) {fseekx(fp_r, offset_r, SEEK_SET);}
             if (fwrite(pbuffer, 1, len_read, fp_w) != len_read) break;
             len_encoded_done += len_read;
             offset_r += len_read;
@@ -445,12 +486,12 @@ uint32_t decode_file(
 }
 
 uint32_t get_is_file_attributes(FILE *fp, uint32_t data_offset, PIS_FILE_ATTRIBUTES pifa, uint32_t type) {
-    fseek(fp, data_offset, SEEK_SET);
+    fseekx(fp, data_offset, SEEK_SET);
     if (fread(pifa, 1, sizeof(IS_FILE_ATTRIBUTES), fp) == sizeof(IS_FILE_ATTRIBUTES)) {
         data_offset += sizeof(IS_FILE_ATTRIBUTES);
     }
     else {
-        fseek(fp, data_offset, SEEK_SET);
+        fseekx(fp, data_offset, SEEK_SET);
     }
     return data_offset;
 }
@@ -460,10 +501,10 @@ uint32_t get_is_file_attributes_ustrm(FILE *fp, uint32_t data_offset, PIS_FILE_A
     wchar_t file_name_w[_MAX_PATH] = {0};
     char *file_name;
     //
-    fseek(fp, data_offset, SEEK_SET);
+    fseekx(fp, data_offset, SEEK_SET);
     if (fread(&is_ax, 1, sizeof(IS_FILE_ATTRIBUTES_X), fp) == sizeof(IS_FILE_ATTRIBUTES_X)
         && is_ax.filename_len > 0 && is_ax.filename_len < _MAX_PATH * 2
-        && (type == 4 ? fseek(fp, sizeof(IS_FILE_ATTRIBUTES_X), SEEK_CUR) == 0 : 1)
+        && (type == 4 ? fseekx(fp, sizeof(IS_FILE_ATTRIBUTES_X), SEEK_CUR) == 0 : 1)
         && fread(file_name_w, 1, is_ax.filename_len, fp) == is_ax.filename_len)
     {
         utf16_to_cs(file_name_w, 65001, &g_Seed);
@@ -478,22 +519,22 @@ uint32_t get_is_file_attributes_ustrm(FILE *fp, uint32_t data_offset, PIS_FILE_A
         pifa->encoded_flags = is_ax.encoded_flags;
         pifa->file_len = is_ax.file_len;
         pifa->is_unicode_launcher = is_ax.is_unicode_launcher;
-        data_offset = ftell(fp);
+        data_offset = ftellx(fp);
     }
     else {
-        fseek(fp, data_offset, SEEK_SET);
+        fseekx(fp, data_offset, SEEK_SET);
     }
     return data_offset;
 }
 
 uint32_t get_is_header(FILE *fp, uint32_t data_offset, PIS_HEADER pis_hdr) {
-    fseek(fp, data_offset, SEEK_SET);
+    fseekx(fp, data_offset, SEEK_SET);
     if (fread(pis_hdr, 1, sizeof(IS_HEADER), fp) == sizeof(IS_HEADER)) {
         if (!strcmp(pis_hdr->SIG, ISSIG) || !strcmp(pis_hdr->SIG, ISSIG_strm)) {
             data_offset += sizeof(IS_HEADER);
         }
     }
-    fseek(fp, data_offset, SEEK_SET);
+    fseekx(fp, data_offset, SEEK_SET);
     return data_offset;
 }
 
@@ -572,7 +613,7 @@ uint32_t extract_encrypted_files(FILE *fp, uint32_t data_offset, int n_2trans) {
         fprintf(stdout, "[b] ");
         offset = decode_file(fp, offset, is_file_attr.file_len, encoded_block_len_i, fp_w, &data_decoder);
         if (offset != data_offset) {
-            fseek(fp, data_offset, SEEK_SET);
+            fseekx(fp, data_offset, SEEK_SET);
             fprintf(stdout, "N");
         }
         else {
@@ -593,7 +634,7 @@ uint32_t extract_encrypted_files(FILE *fp, uint32_t data_offset, int n_2trans) {
                 //
                 offset = decode_file(fp_w, 0, is_file_attr.file_len, is_file_attr.file_len, fp_w, &data_decoder);
                 if (offset != is_file_attr.file_len) {
-                    fseek(fp, data_offset, SEEK_SET);
+                    fseekx(fp, data_offset, SEEK_SET);
                     fprintf(stdout, "N");
                 }
                 else {
@@ -666,7 +707,7 @@ uint32_t save_data_to_file(FILE *fp, uint32_t start, uint32_t data_len, char *fi
     start += data_len;
     fclose(fp_w);
     if (start != offset) {
-        fseek(fp, data_len, SEEK_SET);
+        fseekx(fp, data_len, SEEK_SET);
         fprintf(stdout, "N\n");
     }
     else {
@@ -690,14 +731,14 @@ uint32_t get_plain_file_attributes(FILE *fp, uint32_t data_offset, PPLAIN_FILE_A
         "%[\x20-\xFF]" won't work on win10! "%[^\x0-\x1F]" will stop at blank!
     */
     // in case dumping failed
-    fseek(fp, data_offset, SEEK_SET);
+    fseekx(fp, data_offset, SEEK_SET);
     if (fscanf(fp, "%259[\x20-\xFE]%*[\x0]%259[\x20-\xFE]%*[\x0]%31[\x20-\xFE]%*[\x0]%d%*[\x0]",
         ppfa->file_name, ppfa->file_dest_name, ppfa->version, &ppfa->file_len) == 4)
     {
-        return ftell(fp);
+        return ftellx(fp);
     }
     else {
-        fseek(fp, data_offset, SEEK_SET);
+        fseekx(fp, data_offset, SEEK_SET);
         return data_offset;
     }
 }
@@ -734,14 +775,14 @@ uint32_t get_plain_file_attributes_w(FILE *fp, uint32_t data_offset, PPLAIN_FILE
         \xFFFE is BOM
     */
     // in case dumping failed
-    fseek(fp, data_offset, SEEK_SET);
+    fseekx(fp, data_offset, SEEK_SET);
     if (fwscanf(fp, L"%259[\x20-\xFFFD]%*[\x0]%259[\x20-\xFFFD]%*[\x0]%31[\x20-\xFFFD]%*[\x0]%d%*[\x0]",
             ppfa_w->file_name, ppfa_w->file_dest_name, ppfa_w->version, &ppfa_w->file_len) == 4)
     {
-        return ftell(fp);
+        return ftellx(fp);
     }
     else {
-        fseek(fp, data_offset, SEEK_SET);
+        fseekx(fp, data_offset, SEEK_SET);
         return data_offset;
     }
 }
@@ -788,13 +829,13 @@ uint32_t get_data_offset(FILE *fp){
         return 0;
     }
     //
-    fseek(fp, dos_hdr.e_lfanew, SEEK_SET);
+    fseekx(fp, dos_hdr.e_lfanew, SEEK_SET);
     fread(&pe_hdr, 1, sizeof(IMAGE_NT_HEADERS), fp);
     if (pe_hdr.Signature != 0x4550) {
         return 0;
     }
     // goto the last section table
-    fseek(fp, (pe_hdr.FileHeader.NumberOfSections - 1) * sizeof(IMAGE_SECTION_HEADER), SEEK_CUR);
+    fseekx(fp, (pe_hdr.FileHeader.NumberOfSections - 1) * sizeof(IMAGE_SECTION_HEADER), SEEK_CUR);
     fread(&image_section_hdr, 1, sizeof(IMAGE_SECTION_HEADER), fp);
     //
     return image_section_hdr.PointerToRawData + image_section_hdr.SizeOfRawData;
@@ -812,7 +853,7 @@ void help(){
 int main(int argc, char **argv) {
     FILE *fp = NULL;
     char version_sig[8];
-    uint32_t data_offset, data_len, total_len;
+    uint32_t data_offset, data_offset_x, data_len, total_len;
     int n_2trans, ret, n_tmp;
     char *filename;
     char drive[_MAX_DRIVE], ext[_MAX_EXT];
@@ -871,29 +912,28 @@ int main(int argc, char **argv) {
     //
     // start with some string
     // skip the rubbish? 2009/2010
-    fseek(fp, data_offset, SEEK_SET);
+    fseekx(fp, data_offset, SEEK_SET);
     if (fscanf(fp, "%7[\x20-\xFE]%*[\x0]%*[\x01-\xFE]%*[\x0]%*[\x20-\xFE]%*[\x0]", version_sig) == 1) {
         if (strcmp(version_sig, "NB10") == 0) {
-            data_offset = ftell(fp);
+            data_offset = ftellx(fp);
         }
     }
     //
     // try different types
     //
-    fseek(fp, data_offset, SEEK_SET);
+    fseekx(fp, data_offset, SEEK_SET);
     // try plain 1st
-    if (extract_plain_files(fp, data_offset) > data_offset) {goto check_extra;}
+    if ((data_offset_x = extract_plain_files(fp, data_offset)) > data_offset) {goto check_extra;}
     // unicode version: 0C000000, and wide attibute strings
-    if (extract_plain_files_w(fp, data_offset) > data_offset) {goto check_extra;}
+    if ((data_offset_x = extract_plain_files_w(fp, data_offset)) > data_offset) {goto check_extra;}
     //
     // most
-    if (extract_encrypted_files(fp, data_offset, n_2trans) > data_offset) {goto check_extra;}
+    if ((data_offset_x = extract_encrypted_files(fp, data_offset, n_2trans)) > data_offset) {goto check_extra;}
     //
     // try different types end
     //
 check_extra:
-    data_offset = ftell(fp);
-    data_len = total_len - data_offset;
+    data_len = total_len - data_offset_x;
     //
     if (data_len > 0) { // feof <> 100%
         char *file_name_out;
@@ -902,7 +942,7 @@ check_extra:
         file_name_out = strdup(fname);
         file_name_out = strcat_x(file_name_out, "_ext.bin");
         //
-        save_data_to_file(fp, data_offset, data_len, file_name_out);
+        save_data_to_file(fp, data_offset_x, data_len, file_name_out);
         free(file_name_out);
     }
     //
