@@ -822,7 +822,7 @@ uint32_t extract_plain_files_w(FILE *fp, uint32_t data_offset) {
 /* **** */
 uint32_t get_data_offset(FILE *fp){
     IMAGE_DOS_HEADER dos_hdr;
-    IMAGE_NT_HEADERS pe_hdr;
+    IMAGE_NT_HEADERS32 pe_hdr;
     uint16_t section_n;
     IMAGE_SECTION_HEADER image_section_hdr;
     // pre-test
@@ -832,9 +832,21 @@ uint32_t get_data_offset(FILE *fp){
     }
     //
     fseekx(fp, dos_hdr.e_lfanew, SEEK_SET);
-    fread(&pe_hdr, 1, sizeof(IMAGE_NT_HEADERS), fp);
+    fread(&pe_hdr, 1, sizeof(IMAGE_NT_HEADERS32), fp);
     if (pe_hdr.Signature != 0x4550) {
         return 0;
+    }
+    // pure 64-bit installers
+    switch (pe_hdr.FileHeader.Machine) {
+    case IMAGE_FILE_MACHINE_I386:
+        break;
+    case IMAGE_FILE_MACHINE_AMD64:
+    case 0xAA64: // IMAGE_FILE_MACHINE_ARM64
+        fseekx(fp, sizeof(IMAGE_NT_HEADERS64) - sizeof(IMAGE_NT_HEADERS32), SEEK_CUR);
+        break;
+    default:
+        // Haven't seen any.
+        break;
     }
     // goto the last section table
     fseekx(fp, (pe_hdr.FileHeader.NumberOfSections - 1) * sizeof(IMAGE_SECTION_HEADER), SEEK_CUR);
