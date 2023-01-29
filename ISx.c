@@ -729,10 +729,11 @@ uint32_t get_plain_file_attributes(FILE *fp, uint32_t data_offset, PPLAIN_FILE_A
     /*  char range
         https://en.wikipedia.org/wiki/Control_character
         "%[\x20-\xFF]" won't work on win10! "%[^\x0-\x1F]" will stop at blank!
+        \x0 doesn't work for ucrt! Use [^\x01-\xFE].
     */
     // in case dumping failed
     fseekx(fp, data_offset, SEEK_SET);
-    if (fscanf(fp, "%259[\x20-\xFE]%*[\x0]%259[\x20-\xFE]%*[\x0]%31[\x20-\xFE]%*[\x0]%d%*[\x0]",
+    if (fscanf(fp, "%259[\x20-\xFE]%*[^\x01-\xFE]%259[\x20-\xFE]%*[^\x01-\xFE]%31[\x20-\xFE]%*[^\x01-\xFE]%d%*[^\x01-\xFE]",
         ppfa->file_name, ppfa->file_dest_name, ppfa->version, &ppfa->file_len) == 4)
     {
         return ftellx(fp);
@@ -773,10 +774,11 @@ uint32_t get_plain_file_attributes_w(FILE *fp, uint32_t data_offset, PPLAIN_FILE
         https://en.wikipedia.org/wiki/Control_character
         "%[^\x0-\x1F]" will stop at blank!
         \xFFFE is BOM
+        \x0 doesn't work for ucrt! Use [^\x01-\xFFFE]. \xFFFF blocks msvcrt!
     */
     // in case dumping failed
     fseekx(fp, data_offset, SEEK_SET);
-    if (fwscanf(fp, L"%259[\x20-\xFFFD]%*[\x0]%259[\x20-\xFFFD]%*[\x0]%31[\x20-\xFFFD]%*[\x0]%d%*[\x0]",
+    if (fwscanf(fp, L"%259[\x20-\xFFFD]%*[^\x01-\xFFFE]%259[\x20-\xFFFD]%*[^\x01-\xFFFE]%31[\x20-\xFFFD]%*[^\x01-\xFFFE]%d%*[^\x01-\xFFFE]",
             ppfa_w->file_name, ppfa_w->file_dest_name, ppfa_w->version, &ppfa_w->file_len) == 4)
     {
         return ftellx(fp);
@@ -913,7 +915,7 @@ int main(int argc, char **argv) {
     // start with some string
     // skip the rubbish? 2009/2010
     fseekx(fp, data_offset, SEEK_SET);
-    if (fscanf(fp, "%7[\x20-\xFE]%*[\x0]%*[\x01-\xFE]%*[\x0]%*[\x20-\xFE]%*[\x0]", version_sig) == 1) {
+    if (fscanf(fp, "%7[\x20-\xFE]%*[^\x01-\xFE]%*[\x01-\xFE]%*[^\x01-\xFE]%*[\x20-\xFE]%*[^\x01-\xFE]", version_sig) == 1) {
         if (strcmp(version_sig, "NB10") == 0) {
             data_offset = ftellx(fp);
         }
