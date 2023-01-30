@@ -791,18 +791,22 @@ uint32_t get_plain_file_attributes_w(FILE *fp, uint32_t data_offset, PPLAIN_FILE
 
 uint32_t extract_plain_files_w(FILE *fp, uint32_t data_offset) {
     // ver: 
-    uint32_t offset, offset_o;
+    uint32_t offset, offset_o, num_files;
     PLAIN_FILE_ATTRIBUTES_W pa_w;
     FILE *fp_w;
     char *file_dest_name;
     //
-    // skip 4 bytes
+    fread(&num_files, 1, sizeof(uint32_t), fp);
     offset_o = data_offset;
     data_offset += 4;
     //
     while ((offset = get_plain_file_attributes_w(fp, data_offset, &pa_w)) > data_offset) {
         char file_name_new[11]; // preserved for file name that can't be converted
         //
+        if (data_offset == offset_o + 4) {
+            fprintf(stdout, "Files total: %d\n", num_files);
+            fprintf(stdout, "Extracting:\n");
+        }
         data_offset = offset;
         data_offset += pa_w.file_len; // no mater succeed or not on 1 file
         //
