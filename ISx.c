@@ -163,8 +163,8 @@ cl /Os /MD /FeISx-vc.exe ISx.c inflate_tinfl.c miniz_tinfl.c
 // PE file struct, 'WideChar <--> MultiByte'
 #if defined(_WIN32)
 
-// MSVCR80.dll
-#if _MSC_VER < 1400 && __MSVCRT_VERSION__ < 0x1400
+// MSVCR80.dll: v8.0.40310 from PSDK-2003-amd64 still doesn't have; v8.0.50727 has.
+#if _MSC_FULL_VER <= 140040310 && __MSVCRT_VERSION__ < 0x1400
 #include <errno.h>
 int __cdecl _fseeki64(FILE* stream, __int64 offset, int whence)
 {
