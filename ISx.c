@@ -147,9 +147,9 @@ comparation: https://github.com/micropython/micropython/issues/741
 */
 
 /* compile
-tcc -o ISx-tcc.exe ISx.c inflate_tinfl.c miniz_tinfl.c
-gcc -Os -s -o ISx-gcc.exe ISx.c inflate_tinfl.c miniz_tinfl.c
-cl /Os /MD /FeISx-vc.exe ISx.c inflate_tinfl.c miniz_tinfl.c
+tcc -o ISx-tcc.exe ISx.c inflate_tinfl.c ..\miniz\miniz_tinfl.c -I..\miniz
+gcc -Os -s -o ISx-gcc.exe ISx.c inflate_tinfl.c ..\miniz\miniz_tinfl.c -I..\miniz
+cl /Os /MD /FeISx-vc.exe ISx.c inflate_tinfl.c ..\miniz\miniz_tinfl.c /I..\miniz
 */
 
 
@@ -513,7 +513,7 @@ uint32_t get_is_file_attributes_ustrm(FILE *fp, uint32_t data_offset, PIS_FILE_A
             free(file_name);
         }
         else {
-            fprintf(stdout, "file name can't be converted in your environment at:\n");
+            fprintf(stdout, "File name can't be converted in your environment at:\n");
             sprintf(pifa->file_name, "0x%X", data_offset);
         }
         pifa->encoded_flags = is_ax.encoded_flags;
@@ -550,7 +550,7 @@ uint32_t extract_encrypted_files(FILE *fp, uint32_t data_offset, int n_2trans) {
     //
     offset = get_is_header(fp, data_offset, &is_hdr);
     if (is_hdr.type > 4) {
-        fprintf(stderr, "new installer version!\n");
+        fprintf(stderr, "New installer version!\n");
         return data_offset;
     }
     if (offset <= data_offset) {return data_offset;}
@@ -566,8 +566,8 @@ uint32_t extract_encrypted_files(FILE *fp, uint32_t data_offset, int n_2trans) {
     }
     //
     num_files = is_hdr.num_files;
-    fprintf(stdout, "files total: %d\n", num_files);
-    fprintf(stdout, "extracting:\n");
+    fprintf(stdout, "Files total: %d\n", num_files);
+    fprintf(stdout, "Extracting:\n");
     g_DestDir_len = strlen(g_DestDir);
     for (i = 0; i < num_files; i++) {
         char *seed, *file_name_out;
@@ -590,7 +590,7 @@ uint32_t extract_encrypted_files(FILE *fp, uint32_t data_offset, int n_2trans) {
         fp_w = fopen(file_name_out, "wb+");
         //free(file_name_out);
         if (!fp_w) {
-            fprintf(stderr, "can't create file!\n");
+            fprintf(stderr, "Can't create file!\n");
             break;
         }
         //
@@ -699,7 +699,7 @@ uint32_t save_data_to_file(FILE *fp, uint32_t start, uint32_t data_len, char *fi
     fp_w = fopen(file_name_out, "wb");
     free(file_name_out);
     if (!fp_w) {
-        fprintf(stderr, "can't open file to write!\n");
+        fprintf(stderr, "Can't open file to write!\n");
         return start;
     }
     //
@@ -811,7 +811,7 @@ uint32_t extract_plain_files_w(FILE *fp, uint32_t data_offset) {
         data_offset += pa_w.file_len; // no mater succeed or not on 1 file
         //
         if (utf16_to_cs(pa_w.file_dest_name, g_CP, &file_dest_name) == 0) {
-            fprintf(stdout, "file name can't be converted in your environment at:\n");
+            fprintf(stdout, "File name can't be converted in your environment at:\n");
             sprintf(file_name_new, "0x%X", data_offset);
             file_dest_name = file_name_new;
         }
@@ -899,17 +899,17 @@ int main(int argc, char **argv) {
         goto error;
     }
     //
-    total_len = _filelength(fileno(fp));
+    total_len = _filelength(fileno(fp)); // works when greater than 2GB
     data_offset = get_data_offset(fp);
     if (data_offset <= 0) {
         fprintf(stderr, "Not-pe-file!\n");
         goto error;
     }
     if (data_offset >= total_len) {
-        fprintf(stdout, "no extra data found!\n");
+        fprintf(stdout, "No extra data found!\n");
         goto cleanup;
     }
-    fprintf(stdout, "[0x%08X]\n", data_offset);
+    fprintf(stdout, "0x%08X\n", data_offset);
     //
     n_tmp = strlen(filename);
     dir = malloc(n_tmp);
@@ -956,7 +956,7 @@ check_extra:
     if (data_len > 0) { // feof <> 100%
         char *file_name_out;
         //
-        fprintf(stdout, "extra data:\n");
+        fprintf(stdout, "Extra data:\n");
         file_name_out = strdup(fname);
         file_name_out = strcat_x(file_name_out, "_ext.bin");
         //
