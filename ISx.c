@@ -550,7 +550,6 @@ uint32_t extract_encrypted_files(FILE *fp, uint32_t data_offset, int n_2trans) {
     //
     offset = get_is_header(fp, data_offset, &is_hdr);
     if (is_hdr.type > 4) {
-        fprintf(stderr, "New installer version!\n");
         return data_offset;
     }
     if (offset <= data_offset) {return data_offset;}
@@ -940,13 +939,21 @@ int main(int argc, char **argv) {
     // try different types
     //
     fseekx(fp, data_offset, SEEK_SET);
-    // try plain 1st
-    if ((data_offset_x = extract_plain_files(fp, data_offset)) > data_offset) {goto check_extra;}
-    // unicode version: 0C000000, and wide attibute strings
-    if ((data_offset_x = extract_plain_files_w(fp, data_offset)) > data_offset) {goto check_extra;}
     //
     // most
     if ((data_offset_x = extract_encrypted_files(fp, data_offset, n_2trans)) > data_offset) {goto check_extra;}
+    // try unicode
+    /* Special case:
+        Offset      0  1  2  3  4  5  6  7   8  9  A  B  C  D  E  F
+        000C4E00   54 00 00 00 30 00 78 00  30 00                     T   0 x 0 
+    */
+    // unicode version: 0C000000, and wide attibute strings
+    if ((data_offset_x = extract_plain_files_w(fp, data_offset)) > data_offset) {goto check_extra;}
+    // plain
+    if ((data_offset_x = extract_plain_files(fp, data_offset)) > data_offset) {
+        fprintf(stderr, "Unrecognized version installer!\n");
+        goto check_extra;
+    }
     //
     // try different types end
     //
