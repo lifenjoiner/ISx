@@ -471,9 +471,10 @@ uint32_t decode_file(
             }
             if (fp_r == fp_w) {fseekx(fp_r, offset_r, SEEK_SET);}
             if (fwrite(pbuffer, 1, len_read, fp_w) != len_read) break;
-            len_encoded_done += len_read;
             offset_r += len_read;
             offset_w += len_read;
+            len_encoded_done += len_read;
+            if (len_read > encoded_block_len - len_encoded_done) {len_read = encoded_block_len - len_encoded_done;}
         }
         //
         length -= encoded_block_len;
