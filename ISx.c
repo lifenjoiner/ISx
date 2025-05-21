@@ -237,7 +237,7 @@ typedef unsigned long uint32_t;
 
 
 /* **** */
-char *g_Ver = "0.3.9";
+char *g_Ver = "0.3.10";
 char *g_DestDir;
 char *g_Seed;
 int g_CP;
