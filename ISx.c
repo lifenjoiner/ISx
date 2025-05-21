@@ -201,7 +201,6 @@ __int64 __cdecl _ftelli64(FILE* stream)
 #define fseekx _fseeki64
 
 #include <windows.h>
-#include <mbctype.h>
 int utf16_to_cs(const wchar_t *str_w, UINT cp_out, char **str_m) {
     const wchar_t *str_wn;
     int len_m;
@@ -214,6 +213,8 @@ int utf16_to_cs(const wchar_t *str_w, UINT cp_out, char **str_m) {
     len_m = WideCharToMultiByte(cp_out, 0, str_wn, -1, *str_m, len_m, NULL, NULL);
     return len_m - 1;
 }
+
+int __cdecl _getmbcp(void); // #include <mbctype.h>
 
 #else // defined(_WIN32)
 #define ftellx _ftello64
