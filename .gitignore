@@ -36,6 +36,10 @@
 *.x86_64
 *.hex
 
+#
+*.7z
+*.zip
+
 # Debug files
 *.dSYM/
 *.su
