@@ -444,7 +444,7 @@ uint32_t decode_file(
 )
 {
     uint8_t *pbuffer;
-    uint32_t len_read, len_encoded_done, offset_w;
+    uint32_t len_read, len_read_i, len_left, len_encoded_done, offset_w;
     int need_decode_data;
     //
     if (length <= 0) { return 0; }
@@ -461,20 +461,23 @@ uint32_t decode_file(
     while (length > 0) { // length left
         if (len_read > length) { len_read = length; }
         // for big file
-        len_encoded_done = 0;
         if (encoded_block_len > length) { encoded_block_len = length; }
-        while (len_encoded_done < encoded_block_len) {
-            len_read = fread(pbuffer, 1, len_read, fp_r);
+        len_encoded_done = 0;
+        len_read_i = len_read;
+        len_left = encoded_block_len;
+        while (len_left > 0) {
+            len_read_i = fread(pbuffer, 1, len_read_i, fp_r);
             if (need_decode_data) {
-                if (pdata_decoder->decode_data(pbuffer, len_read, len_encoded_done,
-                    pdata_decoder->decode_byte, pdata_decoder->key, pdata_decoder->key_len) != len_read) break;
+                if (pdata_decoder->decode_data(pbuffer, len_read_i, len_encoded_done,
+                    pdata_decoder->decode_byte, pdata_decoder->key, pdata_decoder->key_len) != len_read_i) break;
             }
             if (fp_r == fp_w) {fseekx(fp_r, offset_r, SEEK_SET);}
-            if (fwrite(pbuffer, 1, len_read, fp_w) != len_read) break;
-            offset_r += len_read;
-            offset_w += len_read;
-            len_encoded_done += len_read;
-            if (len_read > encoded_block_len - len_encoded_done) {len_read = encoded_block_len - len_encoded_done;}
+            if (fwrite(pbuffer, 1, len_read_i, fp_w) != len_read_i) break;
+            offset_r += len_read_i;
+            offset_w += len_read_i;
+            len_encoded_done += len_read_i;
+            len_left -= len_read_i;
+            if (len_read_i > len_left) {len_read_i = len_left;}
         }
         //
         length -= encoded_block_len;
