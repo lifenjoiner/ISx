@@ -304,7 +304,8 @@ char *strcat_x(char *path, char *ext_path) {
     return strcat(path, ext_path);
 }
 
-/* Make sure it won't overwrite the existing ones in your environment! */
+/* Dir name must have a seperator suffix. Or, it is a file name.
+   Make sure it won't overwrite the existing ones on your platform! */
 void make_all_dir_created(char *path, size_t start) {
     char *p, *path_new;
     //
@@ -867,7 +868,7 @@ uint32_t get_data_offset(FILE *fp){
 /* **** */
 void help(){
     fprintf(stderr, "InstallShield file extractor v%s @YX Hao\n", g_Ver);
-    fprintf(stderr, "Usage: %s <InstallShield file>\n", __argv[0]);
+    fprintf(stderr, "Usage: %s <InstallShield file> [output dir]\n", __argv[0]);
 }
 
 
@@ -919,9 +920,17 @@ int main(int argc, char **argv) {
     dir = malloc(n_tmp);
     fname = malloc(n_tmp);
     _splitpath(filename, drive, dir, fname, ext);
-    g_DestDir = calloc(n_tmp - strlen(ext) + 1, 1);
-    _makepath(g_DestDir, drive, dir, fname, NULL);
-    g_DestDir = strcat_x(g_DestDir, "_u\\"); // in case of no ext
+    //
+    if (argc < 3) {
+        g_DestDir = calloc(n_tmp - strlen(ext) + 1, 1);
+        _makepath(g_DestDir, drive, dir, fname, NULL);
+        g_DestDir = strcat_x(g_DestDir, "_u\\"); // in case of no ext
+        g_DestDir = g_DestDir;
+    }
+    else {
+        g_DestDir = strdup(argv[2]);
+        g_DestDir = strcat_x(g_DestDir, "\\");
+    }
     make_all_dir_created(g_DestDir, 0);
     //
     launcher_name = strdup(fname);
